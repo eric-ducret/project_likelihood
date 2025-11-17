@@ -132,9 +132,11 @@ print(transition_matrix)
 
 tr = tree(msa_path="ENSG00000112282_MED23_NT.msa.dat",links_path="ENSG00000112282_MED23_NT.table.dat",branchlength_path="ENSG00000112282_MED23_NT.branchlength.dat")
 
+mu = 2
+
 print("Without threading:")
 t0 = time.time()
-likelihood = tr.compute_likelihood(transition_matrix=transition_matrix)
+likelihood = tr.compute_likelihood(transition_matrix=transition_matrix,mut_rate=mu)
 t1 = time.time()
 print(f"tree likelihood is {likelihood}")
 print(f"time to run: {t1-t0} seconds")
@@ -142,7 +144,7 @@ print("------------------------------")
 
 print(f"With threading:")
 t0 = time.time()
-likelihood = tr.compute_likelihood(transition_matrix=transition_matrix, thr=1)
+likelihood = tr.compute_likelihood(transition_matrix=transition_matrix, thr=1,mut_rate=mu)
 t1 = time.time()
 print(f"tree likelihood is {likelihood}")
 print(f"time to run: {t1-t0} seconds")
