@@ -87,7 +87,7 @@ class tree():
             def one_thread(results, nucl_pos, id_root, Q, pi):
                 for nucleotid_pos in nucl_pos:
                     result = reccurent_prob_vect(self.nodes[id_root],nucleotid_pos,Q)
-                    result *= pi
+                    result = result @ np.transpose(pi)
                     results[nucleotid_pos] = np.log(result)
 
             #n_threads = int(input("How many threads?\n"))
@@ -108,13 +108,15 @@ class tree():
         log_results = []  
         for nucleotid_pos in range(seq_len):
             result = reccurent_prob_vect(self.nodes[id_root],nucleotid_pos,Q)
-            result *= pi
+            result = result @ np.transpose(pi)
             log_results.append(np.log(result))
 
         return np.sum(log_results)
 
     
-os.chdir("/home/samuel/python/advance_programming_master/project_likelihood/dataset")
+#os.chdir("/home/samuel/python/advance_programming_master/project_likelihood/dataset")
+os.chdir("C:\\Users\\Eric\\OneDrive\\Documents\\Travail\\Master\\semester1\\advanced_python_programming\\project_likelihood\\project_likelihood\\dataset")
+
 print("################################")
 print("\n")
 print("Calculating tree likelihood:")
