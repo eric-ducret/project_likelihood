@@ -72,6 +72,12 @@ class tree():
                 proba_child_2 = expm(Q*t2) @ proba_child_2
 
                 return(proba_child_1 * proba_child_2)
+            
+        def one_thread(results, nucl_pos, id_root, Q, pi):
+                for nucleotid_pos in nucl_pos:
+                    result = reccurent_prob_vect(self.nodes[id_root],nucleotid_pos,Q)
+                    result = result @ np.transpose(pi)
+                    results[nucleotid_pos] = np.log(result)
 
         Q = mut_rate*transition_matrix
         pi = stationary_distribution(Q)
@@ -82,18 +88,12 @@ class tree():
                 id_root = node_id
                 break
 
+        results = [np.NAN] * seq_len
 
         if thr == True:
-            def one_thread(results, nucl_pos, id_root, Q, pi):
-                for nucleotid_pos in nucl_pos:
-                    result = reccurent_prob_vect(self.nodes[id_root],nucleotid_pos,Q)
-                    result = result @ np.transpose(pi)
-                    results[nucleotid_pos] = np.log(result)
-
             #n_threads = int(input("How many threads?\n"))
             n_threads = 10
             pos_per_thread = np.array_split(range(seq_len), n_threads)
-            results = [np.NAN] * seq_len
 
             threads = []
             for t in range(n_threads):
@@ -103,19 +103,15 @@ class tree():
             for t in threads:
                 t.join()
 
-            return np.sum(results)    
+            return np.sum(results)
 
-        log_results = []  
-        for nucleotid_pos in range(seq_len):
-            result = reccurent_prob_vect(self.nodes[id_root],nucleotid_pos,Q)
-            result = result @ np.transpose(pi)
-            log_results.append(np.log(result))
+        one_thread(results = results, nucl_pos=range(seq_len), id_root=id_root, Q=Q, pi=pi)
 
-        return np.sum(log_results)
+        return np.sum(results)
 
     
-#os.chdir("/home/samuel/python/advance_programming_master/project_likelihood/dataset")
-os.chdir("C:\\Users\\Eric\\OneDrive\\Documents\\Travail\\Master\\semester1\\advanced_python_programming\\project_likelihood\\project_likelihood\\dataset")
+os.chdir("/home/samuel/python/advance_programming_master/project_likelihood/dataset")
+#os.chdir("C:\\Users\\Eric\\OneDrive\\Documents\\Travail\\Master\\semester1\\advanced_python_programming\\project_likelihood\\project_likelihood\\dataset")
 
 print("################################")
 print("\n")
