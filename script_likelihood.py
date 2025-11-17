@@ -4,6 +4,7 @@ from scipy.linalg import expm
 import threading
 import os
 import time
+import pandas as pd
 
 def stationary_distribution(Q):
     # return stationary vector for any transition matrix    
@@ -27,30 +28,28 @@ class tree():
     def __init__(self,msa_path,links_path,branchlength_path):
         
         # read files 
-        links = np.loadtxt(links_path, delimiter=",",dtype=int)
-        branchlength = np.loadtxt(branchlength_path, delimiter=",")
-        msa = []   
-        with open(msa_path) as f:
-            for line in f:
-                index, seq = line.strip().split()
-                msa.append((int(index), seq))
+        links = pd.read_table(links_path, delimiter=",", header=None, dtype = str)
+        branchlength = pd.read_table(branchlength_path, delimiter=",", header=None)
+        msa = pd.read_table(msa_path, delimiter=" ", header=None)
+        print(msa.shape)
+        self.sequences = msa
 
         # set nodes
-        nodes_id = set(links.flatten())
+        nodes_id = set(links.values.flatten())
         self.nodes = {id:node(id) for id in nodes_id}
 
         # iterate over each link to set the correct linkage between nodes
-        for i,link in enumerate(links) :
+        for i,link in links.iterrows() :
             self.nodes[link[0]].children.append(self.nodes[link[1]])
             self.nodes[link[0]].isleaf = False
             self.nodes[link[1]].parent=self.nodes[link[0]]
             self.nodes[link[0]].dist_to_child.append(branchlength[i])
         
         # also save sequences in leaves
-        for id,sequence in enumerate(msa):
-            self.nodes[id+1].seq = sequence[1]
+        for i, sequence in msa.iterrows():
+            self.nodes[sequence[0]].seq = sequence[1]
 
-    def compute_likelihood(self,transition_matrix,mut_rate = 1e-8):
+    def compute_likelihood(self,transition_matrix,mut_rate = 1e-8, thr = False):
 
         def encode(nucleotide):
             mapping = {
@@ -63,6 +62,7 @@ class tree():
 
         def reccurent_prob_vect(node,nucleotid_pos,Q):  
             if node.isleaf :  # check if leaf
+                print(node.seq)
                 return (encode(node.seq[nucleotid_pos]))      
 
             else : # if not leaf
@@ -70,7 +70,7 @@ class tree():
 
                 proba_child_1 = reccurent_prob_vect(node.children[0],nucleotid_pos,Q)
                 proba_child_2 = reccurent_prob_vect(node.children[1],nucleotid_pos,Q)
-
+                print(expm(Q*t1))
                 proba_child_1 = expm(Q*t1) @ proba_child_1
                 proba_child_2 = expm(Q*t2) @ proba_child_2
 
@@ -78,76 +78,45 @@ class tree():
 
         Q = mut_rate*transition_matrix
         pi = stationary_distribution(Q)
+        seq_len = len(self.sequences.iloc[0,1])
 
         for node_id in self.nodes :
             if self.nodes[node_id].parent == None :
                 id_root = node_id
                 break
 
-        log_results = []  
 
-        for nucleotid_pos in range(len(self.nodes[1].seq)):
+        if thr == True:
+            def one_thread(results, nucl_pos, id_root, Q, pi):
+                for nucleotid_pos in nucl_pos:
+                    result = reccurent_prob_vect(self.nodes[id_root],nucleotid_pos,Q)
+                    result *= pi
+                    results[nucleotid_pos] = np.log(result)
+
+            n_threads = int(input("How many threads?\n"))
+            pos_per_thread = np.array_split(range(seq_len), n_threads)
+            results = [np.NAN] * seq_len
+
+            threads = []
+            for t in range(n_threads):
+                x = threading.Thread(target=one_thread, args=(results, pos_per_thread[t], id_root, Q, pi))
+                threads.append(x)
+                x.start()
+            for t in threads:
+                t.join()
+
+            return np.sum(results)    
+
+        log_results = []  
+        for nucleotid_pos in range(seq_len):
             result = reccurent_prob_vect(self.nodes[id_root],nucleotid_pos,Q)
             result *= pi
             log_results.append(np.log(result))
 
         return np.sum(log_results)
 
-    def compute_likelihood_threading(self, transition_matrix, mut_rate = 1e-8, n_threads = 10):
-
-        def encode(nucleotide):
-            mapping = {
-                "A": [1, 0, 0, 0],
-                "C": [0, 1, 0, 0],
-                "G": [0, 0, 1, 0],
-                "T": [0, 0, 0, 1]
-            }
-            return np.array(mapping.get(nucleotide, [0, 0, 0, 0]))
-
-        def reccurent_prob_vect(node,nucleotid_pos,Q):  
-            if node.isleaf :  # check if leaf
-                return (encode(node.seq[nucleotid_pos]))      
-
-            else : # if not leaf
-                t1,t2 = node.dist_to_child
-
-                proba_child_1 = reccurent_prob_vect(node.children[0],nucleotid_pos,Q)
-                proba_child_2 = reccurent_prob_vect(node.children[1],nucleotid_pos,Q)
-
-                proba_child_1 = expm(Q*t1) @ proba_child_1
-                proba_child_2 = expm(Q*t2) @ proba_child_2
-
-                return(proba_child_1 * proba_child_2)
-        
-        def one_thread(results, nucl_pos, id_root, Q, pi):
-            for nucleotid_pos in nucl_pos:
-                result = reccurent_prob_vect(self.nodes[id_root],nucleotid_pos,Q)
-                result *= pi
-                results[nucleotid_pos] = np.log(result)
-
-        Q = mut_rate*transition_matrix
-        pi = stationary_distribution(Q)
-
-        for node_id in self.nodes :
-            if self.nodes[node_id].parent == None :
-                id_root = node_id
-                break
-
-        seq_len = len(self.nodes[1].seq)
-        pos_per_thread = np.array_split(range(seq_len), n_threads)
-        results = [np.NAN] * seq_len
-
-        threads = []
-        for t in range(n_threads):
-            x = threading.Thread(target=one_thread, args=(results, pos_per_thread[t], id_root, Q, pi))
-            threads.append(x)
-            x.start()
-        for t in threads:
-            t.join()
-
-        return np.sum(results)
     
-os.chdir("/home/samuel/python/advance_programming_master/project_likelihood")
+os.chdir("/home/samuel/python/advance_programming_master/project_likelihood/dataset")
 
 print("################################")
 print("\n")
@@ -157,7 +126,7 @@ transition_matrix = np.full((4,4),1)-4*np.eye(4)
 print("Transition matrix:")
 print(transition_matrix)
 
-tr = tree(msa_path="msa.dat",links_path="table.dat",branchlength_path="branchlength.dat")
+tr = tree(msa_path="ENSG00000013016_EHD3_NT.msa.dat",links_path="ENSG00000013016_EHD3_NT.table.dat",branchlength_path="ENSG00000013016_EHD3_NT.branchlength.dat")
 
 print("Without threading:")
 t0 = time.time()
@@ -165,11 +134,11 @@ likelihood = tr.compute_likelihood(transition_matrix=transition_matrix)
 t1 = time.time()
 print(f"tree likelihood is {likelihood}")
 print(f"time to run: {t1-t0} seconds")
+print("------------------------------")
 
-n_t = 10
-print(f"With threading (number of threads = {n_t}):")
+print(f"With threading:")
 t0 = time.time()
-likelihood = tr.compute_likelihood_threading(transition_matrix=transition_matrix, n_threads=n_t)
+likelihood = tr.compute_likelihood(transition_matrix=transition_matrix, thr=True)
 t1 = time.time()
 print(f"tree likelihood is {likelihood}")
 print(f"time to run: {t1-t0} seconds")
