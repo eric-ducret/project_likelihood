@@ -31,7 +31,6 @@ class tree():
         links = pd.read_table(links_path, delimiter=",", header=None, dtype = str)
         branchlength = pd.read_table(branchlength_path, delimiter=",", header=None)
         msa = pd.read_table(msa_path, delimiter=" ", header=None)
-        print(msa.shape)
         self.sequences = msa
 
         # set nodes
@@ -43,7 +42,7 @@ class tree():
             self.nodes[link[0]].children.append(self.nodes[link[1]])
             self.nodes[link[0]].isleaf = False
             self.nodes[link[1]].parent=self.nodes[link[0]]
-            self.nodes[link[0]].dist_to_child.append(branchlength[i])
+            self.nodes[link[0]].dist_to_child.append(branchlength.iloc[0, i])
         
         # also save sequences in leaves
         for i, sequence in msa.iterrows():
@@ -62,7 +61,6 @@ class tree():
 
         def reccurent_prob_vect(node,nucleotid_pos,Q):  
             if node.isleaf :  # check if leaf
-                print(node.seq)
                 return (encode(node.seq[nucleotid_pos]))      
 
             else : # if not leaf
@@ -70,7 +68,6 @@ class tree():
 
                 proba_child_1 = reccurent_prob_vect(node.children[0],nucleotid_pos,Q)
                 proba_child_2 = reccurent_prob_vect(node.children[1],nucleotid_pos,Q)
-                print(expm(Q*t1))
                 proba_child_1 = expm(Q*t1) @ proba_child_1
                 proba_child_2 = expm(Q*t2) @ proba_child_2
 
@@ -93,7 +90,8 @@ class tree():
                     result *= pi
                     results[nucleotid_pos] = np.log(result)
 
-            n_threads = int(input("How many threads?\n"))
+            #n_threads = int(input("How many threads?\n"))
+            n_threads = 10
             pos_per_thread = np.array_split(range(seq_len), n_threads)
             results = [np.NAN] * seq_len
 
@@ -117,7 +115,6 @@ class tree():
 
     
 os.chdir("/home/samuel/python/advance_programming_master/project_likelihood/dataset")
-
 print("################################")
 print("\n")
 print("Calculating tree likelihood:")
