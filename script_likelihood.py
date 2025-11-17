@@ -149,3 +149,22 @@ t1 = time.time()
 print(f"tree likelihood is {likelihood}")
 print(f"time to run: {t1-t0} seconds")
 
+
+
+
+
+#### screening mu
+
+import matplotlib.pyplot as plt
+
+
+all_mu = np.linspace(0,5,200)
+
+
+likeli_vect = []
+t0 = time.time()
+for mu in all_mu:
+    likeli_vect.append(tr.compute_likelihood(transition_matrix=transition_matrix, thr=10,mut_rate=mu))
+print(time.time()-t0)
+plt.plot(all_mu,likeli_vect)
+plt.show()
